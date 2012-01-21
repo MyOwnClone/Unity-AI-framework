@@ -133,11 +133,11 @@ public class PathNode : MonoBehaviour, IPathNode<PathNode>
         {            
             for(int row = 0; row < yCount; row++)
             {
-				bool nodeEnabled = false;
+				//bool nodeEnabled = false;
 				
 				if (Generator.map[col][row] == 0)
 				{
-					nodeEnabled = true;
+					//nodeEnabled = true;
 					endNode = counter;
 					
 					if (startNode == -1)
@@ -145,7 +145,7 @@ public class PathNode : MonoBehaviour, IPathNode<PathNode>
 				}
 				else
 				{
-					nodeEnabled = false;
+					//nodeEnabled = false;
 				}
 				
                 /*GameObject newNode = Spawn(new Vector3(startX - (col * 2), center.y, startZ - (row * 2)), nodeEnabled);

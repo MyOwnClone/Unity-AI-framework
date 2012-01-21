@@ -116,6 +116,7 @@ public class WaypointGenerator : MonoBehaviour
 		}
 		catch (IOException e)
 		{
+			Debug.Log("IO error: " + e.Message);
 			return false;	
 		}
 		
@@ -358,10 +359,10 @@ public class WaypointGenerator : MonoBehaviour
 		
 		foreach (GameObject go in qi.GameObjects)
 		{
-			if (go.name == "Capsule")
+			/*if (go.name == "Capsule")
 			{
 				Debug.Log("Capsule");	
-			}
+			}*/
 			
 			double distance = Vector3.Distance(go.transform.position, actPosition);	
 			
@@ -400,8 +401,11 @@ public class WaypointGenerator : MonoBehaviour
 				timeFinished = (DateTime.Now.Subtract(Generator.start)).Seconds;
 			}
 		}
-		else if (!GenerationDone && QuadTree.generationDone && Generator.generatorDone /*&& (!SaveFileExist() || LoadingCorrupted)*/)
+		else if ((!GenerationDone || (QuadTree.waypointsNeedRegeneration && !QuadTree.rebuildingQuadTree)) && QuadTree.generationDone && Generator.generatorDone /*&& (!SaveFileExist() || LoadingCorrupted)*/)
 		{
+			foreach (GameObject go in pathNodes)
+				GameObject.DestroyImmediate(go);
+			
 			Debug.Log("Waypoint generation");
 			
 			QuadTree qt = GameObject.Find("QuadTreeGenerator").GetComponent<QuadTree>();
@@ -452,7 +456,9 @@ public class WaypointGenerator : MonoBehaviour
 					{
 						//var tmp = PathNode.Spawn(position, true);	
 						
-						matrix[x1][y1] = PathNode.Spawn(position, true).GetComponent<PathNode>();
+						GameObject tmp = PathNode.Spawn(position, true);
+						
+						matrix[x1][y1] = tmp.GetComponent<PathNode>();
 						
 						if (x1 > 0 && matrix[x1-1][y1] != null && matrix[x1-1][y1].nodeEnabled)
 						{
@@ -496,7 +502,7 @@ public class WaypointGenerator : MonoBehaviour
 							matrix[x1][y1].connectionIndices.Add((x1-1) + ((y1+1) * (int)Width));
 						}
 						
-						//pathNodes.Add(tmp);
+						pathNodes.Add(tmp);
 					}
 					else
 					{
@@ -513,6 +519,8 @@ public class WaypointGenerator : MonoBehaviour
 			GenerationDone = true;
 			
 			timeFinished = (DateTime.Now.Subtract(Generator.start)).Seconds;
+			
+			QuadTree.waypointsNeedRegeneration = false;
 		}
 	}
 }

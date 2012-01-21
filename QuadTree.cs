@@ -2,6 +2,18 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 	
+	public class ObjectInfo 
+	{
+		public Vector3 scale = new Vector3(0f, 0f, 0f);
+		public Vector3 position = new Vector3(0f, 0f, 0f);
+	
+		public ObjectInfo(Vector3 position, Vector3 scale)
+		{	
+			this.position = position;
+			this.scale = scale;	
+		}
+	}
+
 	public class QuadTree : MonoBehaviour
 	{
 		//private QuadTreeItem root = null;
@@ -11,7 +23,12 @@ using UnityEngine;
 		public float CenterY = 0.0f;
 		public float Width = 0.0f;
 		public float TargetSize = 0.0f;
+	
+		//private List<GameObject> allObstacles = new List<GameObject>();	// tag == wall
+		private List<ObjectInfo> oldObstacles = new List<ObjectInfo>();
 		
+		private DateTime lastTimeChecked = DateTime.Now;
+	
 		//public QuadTreeItem Root
 		public GameObject Root
 		{
@@ -22,10 +39,12 @@ using UnityEngine;
 		}
 	
 		public static bool generationDone = false;
+	
+		public static bool waypointsNeedRegeneration = false;
 		
 		List<GameObject> quadTree = new List<GameObject>();
 		
-		public bool IsGameObjectIn(GameObject bigger, GameObject smaller)
+		/*public bool IsGameObjectIn(GameObject bigger, GameObject smaller)
 		{
 			return IsGameObjectIn(bigger, smaller.transform.position);		
 		}
@@ -48,15 +67,7 @@ using UnityEngine;
 			float rightFrontDownX = biggerPos.x + biggerColliderSize.x / 2.0f;
 			float rightFrontDownY = biggerPos.y - biggerColliderSize.y / 2.0f;
 			float rightFrontDownZ = biggerPos.z - biggerColliderSize.z / 2.0f;
-			
-			/*float leftFrontUpX = biggerPos.x - biggerColliderSize.x / 2.0f;
-			float leftFrontUpY = biggerPos.y + biggerColliderSize.y / 2.0f;
-			float leftFrontUpZ = biggerPos.z - biggerColliderSize.z / 2.0f;
-			
-			float rightFrontUpX = biggerPos.x + biggerColliderSize.x / 2.0f;
-			float rightFrontUpY = biggerPos.y + biggerColliderSize.y / 2.0f;
-			float rightFrontUpZ = biggerPos.z - biggerColliderSize.z / 2.0f;*/
-			
+						
 			float leftBackDownX = biggerPos.x - biggerColliderSize.x / 2.0f;
 			float leftBackDownY = biggerPos.y - biggerColliderSize.y / 2.0f;
 			float leftBackDownZ = biggerPos.z + biggerColliderSize.z / 2.0f;
@@ -65,19 +76,9 @@ using UnityEngine;
 			float rightBackDownY = biggerPos.y - biggerColliderSize.y / 2.0f;
 			float rightBackDownZ = biggerPos.z + biggerColliderSize.z / 2.0f;
 			
-			/*float leftBackUpX = biggerPos.x - biggerColliderSize.x / 2.0f;
-			float leftBackUpY = biggerPos.y + biggerColliderSize.y / 2.0f;
-			float leftBackUpZ = biggerPos.z + biggerColliderSize.z / 2.0f;
-			
-			float rightBackUpX = biggerPos.x + biggerColliderSize.x / 2.0f;
-			float rightBackUpY = biggerPos.y + biggerColliderSize.y / 2.0f;
-			float rightBackUpZ = biggerPos.z + biggerColliderSize.z / 2.0f;*/
-			
 			//Vector3 smallerPos = smaller.transform.position;
 			
 			if (smallerPos.x >= leftFrontDownX && smallerPos.x <= rightFrontDownX
-				/*&& smallerPos.x >= leftBackDownX && smallerPos.x <= rightBackDownX
-				&& smallerPos.z >= leftFrontDownZ && smallerPos.z <= leftBackDownZ*/
 				&& smallerPos.z >= rightFrontDownZ && smallerPos.z <= rightBackDownZ)
 			{
 				return true;	
@@ -86,6 +87,21 @@ using UnityEngine;
 			{
 				return false;
 			}
+		}*/
+	
+		public bool IsGameObjectIn(GameObject box1, GameObject box2)
+		{
+			Vector3 size = box2.transform.localScale;
+			Vector3 position = box2.transform.position;
+		
+			return OOBCollisionDetection.AreBoxexOverlapping(box1, size, position);
+		}
+	
+		public bool IsGameObjectIn(GameObject bigger, Vector3 smallerPos)
+		{
+			Vector3 size = new Vector3(Width, 1, Width);
+		
+			return OOBCollisionDetection.AreBoxexOverlapping(bigger, size, smallerPos);
 		}
 	
 		public List<GameObject> GetObjectsInside(Vector3 vec)
@@ -179,6 +195,22 @@ using UnityEngine;
 		
 			return result;
 		}
+	
+		void DisposeOldQuadTree(GameObject root)
+		{		
+			if (root != null &&root.GetComponent<QuadTreeItem>().Children.Count == 4)
+			{
+				for (int i = 0; i < 4; i++)
+				{
+					DisposeOldQuadTree(root.GetComponent<QuadTreeItem>().Children[i]);
+				}
+				GameObject.DestroyImmediate(root);
+			}	
+			else if (root != null)
+			{
+				GameObject.DestroyImmediate(root);
+			}
+		}
 		
 		public List<GameObject> DetermineGameObjectsInside(GameObject item)
 		{
@@ -205,6 +237,64 @@ using UnityEngine;
 		{
 			//Init (null, 40, 0);	
 		}
+	
+		private int detectionCounter = 0;
+	
+		bool DetectChangeInObstacles()
+		{
+			bool result = true;
+		
+			if (detectionCounter < 500)
+			{
+				result = false;
+				detectionCounter++;
+			}
+			else
+			{
+				Debug.Log ("Times up");
+				detectionCounter = 0;
+			}
+		
+			if (result)
+			{
+				var newObstacles = new List<ObjectInfo>();
+			
+				var obstacles = GameObject.FindGameObjectsWithTag("wall");
+				foreach (GameObject go in obstacles)
+				{
+					newObstacles.Add(new ObjectInfo(go.transform.position, go.transform.localScale));
+				}
+			
+				if (newObstacles.Count != oldObstacles.Count)
+				{
+					result = true;
+				}
+				else
+					result = false;
+				
+				int counter = 0;
+				
+				if (!result)
+				{
+					for (; counter < newObstacles.Count; counter++)
+					{
+						ObjectInfo oldObject = oldObstacles[counter];
+						ObjectInfo newObject = newObstacles[counter];
+					
+						if ((oldObject.position != newObject.position) || (oldObject.scale != newObject.scale))
+						{
+							return true;
+						}
+					}
+				}
+			
+				Debug.Log ("change in obstacles: " + result + " map generator done: " + Generator.generatorDone + " quadtree generation done: " + generationDone );
+			}
+		
+			return result;
+		}
+	
+		public static bool rebuildingQuadTree = false;
 		
 		void Update()
 		{
@@ -213,12 +303,29 @@ using UnityEngine;
 				Init (null, 40, 0);
 				generationDone = true;
 			}
+			else if (DetectChangeInObstacles() && Generator.generatorDone && generationDone == true)
+			{
+				Debug.Log("Rebuilding QuadTree");
+				rebuildingQuadTree = true;
+				DisposeOldQuadTree(root);
+				Init (null, 40, 0);
+				rebuildingQuadTree = false;
+				waypointsNeedRegeneration = true;
+			}			
 		}
 	
 		public void Init(/*QuadTreeItem*/GameObject startItem, int level, int depth)
 		{
 			if (startItem == null)
 			{
+				//allObstacles = new List<GameObject>(GameObject.FindGameObjectsWithTag("wall"));
+			
+				var obstacles = GameObject.FindGameObjectsWithTag("wall");
+				foreach (GameObject go in obstacles)
+				{
+					oldObstacles.Add(new ObjectInfo(go.transform.position, go.transform.localScale));
+				}				
+			
 				root = startItem = GameObject.CreatePrimitive(PrimitiveType.Sphere);
 				root.name = "quadtree_root";
 				root.AddComponent<QuadTreeItem>();

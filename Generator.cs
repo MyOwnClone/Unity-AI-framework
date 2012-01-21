@@ -27,29 +27,6 @@ public class Generator : MonoBehaviour {
 		start = DateTime.Now;
 	}
 	
-	/*void DrawLine(int x1, int y1, int x2, int y2)
-	{
-		int dx = x2 - x1;
-		int dy = y2 - y1;
-		
-		int y = 0;
-		
-		if (dx == 0)
-			dx = 1;
-		
-		if (x1 < 0 && x2 < 0 && y1 < 0 && y2 < 0)
-			return;
-		
-		if (x1 > cols - 1 && x2 > cols - 1 && y1 > rows - 1 && y2 > rows - 1)
-			return;
-		
-		for (int x = x1; x <= x2; x++) {
-			y = y1 + (dy) * (x - x1)/(dx);
-		        
-			map[x][y] = 0;
-		}	
-	}*/
-	
 	void DrawLine(int x0, int y0, int x1, int y1)
 	{
 		int dx = Math.Abs(x1-x0);
@@ -91,7 +68,7 @@ public class Generator : MonoBehaviour {
 	}
 		
 	
-	bool DrawRoom(int x, int y, int width, int height/*, bool firstRow, bool firstCol*/)
+	bool DrawRoom(int x, int y, int width, int height )
 	{
 		if (x < 1 || y < 1)
 		{
@@ -195,7 +172,7 @@ public class Generator : MonoBehaviour {
 		
 		
 #if true
-		int /*x,*/ y, xRange = 0, yRange = 0, width, height;
+		//int x, y,xRange = 0, yRange = 0, width, height;
 		
 		List<int> roomXList = new List<int>();
 		List<int> roomYList = new List<int>();
@@ -307,6 +284,7 @@ public class Generator : MonoBehaviour {
 		}
 		catch (IOException e)
 		{
+			Debug.Log ("Map file not found:" + e.Message);
 			return false;	
 		}
 		

@@ -2,8 +2,9 @@ using UnityEngine;
 using System.Collections;
 
 
-class OOBCollisionDetection : MonoBehaviour
+class OOBCollisionDetection //: MonoBehaviour
 {	
+	// test code
 	void Update()
 	{
 		GameObject box1 = GameObject.Find("Cube1");	
@@ -17,15 +18,15 @@ class OOBCollisionDetection : MonoBehaviour
 		
 		Vector3[] A = new Vector3[3];
 		
-		A[0] = box1.transform.forward;//new Vector3(1f, 0f, 0f);
-		A[1] = box1.transform.up;//new Vector3(0f, 1f, 0f);
-		A[2] = box1.transform.right;//new Vector3(0f, 0f, 1f);
+		A[0] = box1.transform.forward;
+		A[1] = box1.transform.up;
+		A[2] = box1.transform.right;
 		
 		Vector3[] B = new Vector3[3];
 		
-		B[0] = box2.transform.forward;//new Vector3(1f, 0f, 0f);
-		B[1] = box2.transform.up;//new Vector3(0f, 1f, 0f);
-		B[2] = box2.transform.right;//new Vector3(0f, 0f, 1f);
+		B[0] = box2.transform.forward;
+		B[1] = box2.transform.up;
+		B[2] = box2.transform.right;
 		
 		if (OBBOverlap(a, Pa, A, b, Pb, B))
 		{
@@ -37,6 +38,79 @@ class OOBCollisionDetection : MonoBehaviour
 		}
 	}
 	
+	public static bool AreBoxexOverlapping(GameObject box1, Vector3 box2Size, Vector3 box2Position)
+	{
+		/*Vector3 leftFrontDown 	= new Vector3( -size.x / 2.0f, -size.y / 2.0f, -size.z / 2.0f );
+		Vector3 rightFrontDown 	= new Vector3( 	size.x / 2.0f, -size.y / 2.0f, -size.z / 2.0f );
+		Vector3 rightFrontUp 	= new Vector3( 	size.x / 2.0f, 	size.y / 2.0f, -size.z / 2.0f );
+		Vector3 leftFrontUp 	= new Vector3( -size.x / 2.0f, 	size.y / 2.0f, -size.z / 2.0f );
+		
+		Vector3 leftBackDown 	= new Vector3( -size.x / 2.0f, -size.y / 2.0f, size.z / 2.0f );
+		Vector3 rightBackDown 	= new Vector3( 	size.x / 2.0f, -size.y / 2.0f, size.z / 2.0f );
+		Vector3 rightBackUp 	= new Vector3( 	size.x / 2.0f, 	size.y / 2.0f, size.z / 2.0f );
+		Vector3 leftBackUp 		= new Vector3( -size.x / 2.0f, 	size.y / 2.0f, size.z / 2.0f );
+		
+		Vector3[] arr = new Vector3[8];
+		
+		arr[0] = leftFrontDown;
+		arr[1] = rightFrontDown;
+		arr[2] = rightFrontUp;
+		arr[3] = leftFrontUp;
+		
+		arr[4] = leftBackDown;
+		arr[5] = rightBackDown;
+		arr[6] = rightBackUp;
+		arr[7] = leftBackUp;
+		
+		for (int i = 0; i < arr.Length; i++)
+			arr[i] += position;*/		
+		
+		Vector3 a = new Vector3(box1.transform.localScale.x / 2.0f, box1.transform.localScale.y / 2.0f, box1.transform.localScale.z / 2.0f);
+		Vector3 b = new Vector3(box2Size.x / 2.0f, box2Size.y / 2.0f, box2Size.z / 2.0f);	
+		
+		Vector3 Pa = box1.transform.position;
+		Vector3 Pb = box2Position;
+		
+		Vector3[] A = new Vector3[3];
+		
+		A[0] = box1.transform.forward;
+		A[1] = box1.transform.up;
+		A[2] = box1.transform.right;
+		
+		Vector3[] B = new Vector3[3];
+		
+		B[0] = new Vector3(1f, 0f, 0f);
+		B[1] = new Vector3(0f, 1f, 0f);
+		B[2] = new Vector3(0f, 0f, 1f);
+		
+		return OBBOverlap(a, Pa, A, b, Pb, B);
+	}
+	
+	public static bool AreBoxesOverlapping(GameObject box1, GameObject box2)
+	{
+		if (box1 == null || box2 == null)
+			return false;
+		
+		Vector3 a = new Vector3(box1.transform.localScale.x / 2.0f, box1.transform.localScale.y / 2.0f, box1.transform.localScale.z / 2.0f);
+		Vector3 b = new Vector3(box2.transform.localScale.x / 2.0f, box2.transform.localScale.y / 2.0f, box2.transform.localScale.z / 2.0f);	
+		
+		Vector3 Pa = box1.transform.position;
+		Vector3 Pb = box2.transform.position;
+		
+		Vector3[] A = new Vector3[3];
+		
+		A[0] = box1.transform.forward;
+		A[1] = box1.transform.up;
+		A[2] = box1.transform.right;
+		
+		Vector3[] B = new Vector3[3];
+		
+		B[0] = box2.transform.forward;
+		B[1] = box2.transform.up;
+		B[2] = box2.transform.right;
+		
+		return OBBOverlap(a, Pa, A, b, Pb, B);
+	}
 	
 	static bool OBBOverlap(Vector3 a, Vector3 Pa, Vector3[] A, Vector3 b, Vector3 Pb, Vector3[] B)
 	{
