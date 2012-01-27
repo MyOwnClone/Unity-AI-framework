@@ -1,11 +1,17 @@
+#define DEBUG_WAYPOINT
+#undef DEBUG_WAYPOINT
+
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
+#if (DEBUG_WAYPOINT)
 public class PathNode : MonoBehaviour, IPathNode<PathNode>
+#else
+public class PathNode : IPathNode<PathNode>	
+#endif
 {
     public List<PathNode> connections;
-	public List<int> connectionIndices;
     	
 	public GameObject innerObj = null;
 	
@@ -17,9 +23,18 @@ public class PathNode : MonoBehaviour, IPathNode<PathNode>
 	public int xPos = -1;
 	public int yPos = -1;
 	
+	public bool nodeValid = true;
+	
 	public Vector3 position;
 	
 	private static int nodeCounter = 0;
+	
+	public int Id {
+		get;
+		set;
+	}
+	
+	public HashSet<int> ConnectionSet = new HashSet<int>();
     
     public bool Invalid
     {
@@ -42,20 +57,27 @@ public class PathNode : MonoBehaviour, IPathNode<PathNode>
 			position = value;	
 		}
     }
-    
+	
+	public void AddConnection(PathNode other)
+	{
+		if (!ConnectionSet.Contains(other.Id))
+			connections.Add(other);
+	}
+
+#if (DEBUG_WAYPOINT)
     public void Update()
     {
 		if (!nodeEnabled)
 			return;
 		
-        DrawHelper.DrawCube(transform.position/*Position*/, Vector3.one, Color.red );
+        DrawHelper.DrawCube(transform.position, Vector3.one, Color.red );
         if(connections == null)
             return;
         for(int i = 0; i < connections.Count; i++)
         {
             if(connections[i] == null)
                 continue;
-            Debug.DrawLine(transform.position/*Position*/, connections[i].Position, Color.red);
+            Debug.DrawLine(transform.position, connections[i].Position, Color.red);
         }
     }
     
@@ -64,161 +86,48 @@ public class PathNode : MonoBehaviour, IPathNode<PathNode>
         if(connections == null)
 		{
             connections = new List<PathNode>();
-        	connectionIndices = new List<int>();
 		}
     }
+#else
+	public string name = string.Empty;
+	
+#endif
 	
 	public PathNode()
 	{
 		if(connections == null)
 		{
             connections = new List<PathNode>();		
-			connectionIndices = new List<int>();
 		}
 	}
     
-    public static GameObject Spawn(Vector3 inPosition, bool nodeEnabled)
+    public static PathNode Spawn(Vector3 inPosition, bool nodeEnabled, string suffix)
     {
-
+#if (DEBUG_WAYPOINT)
         GameObject obj = null;
-		obj = new GameObject("PathNode_" + nodeCounter);
-		//obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-		//obj.name = "PathNode_" + nodeCounter;
-		
-		/*PathNode newNode = new PathNode();//*/obj.AddComponent<PathNode>();
-		
-		obj.transform.position = inPosition;
-		//newNode.position = inPosition;
-		
-		/*newNode*/obj.GetComponent<PathNode>().innerObj = obj;
+		obj = new GameObject("PathNode_" + nodeCounter + " " + suffix);
+		obj.name = "PathNode_" + nodeCounter + " " + inPosition.x + ", " + inPosition.z + " " + suffix + ", enabled = " + nodeEnabled;
+		obj.AddComponent<PathNode>();
+		obj.transform.position = inPosition;obj.AddComponent<PathNode>();
+		obj.GetComponent<PathNode>().innerObj = obj;
 		
 		obj.GetComponent<PathNode>().nodeEnabled = nodeEnabled;
+		obj.GetComponent<PathNode>().nodeValid = true;
 		obj.GetComponent<PathNode>().Position = inPosition;
+		obj.GetComponent<PathNode>().Id = nodeCounter;
 		
 		nodeCounter++;
 		
-        return obj;
-    }
-	
-	/*public GameObject GetInnerObject()
-	{
-		return innerObj;	
-	}*/
-        
-    public static List<PathNode> CreateGrid(Vector3 center, Vector3 spacing, int[] dim, float randomSpace)
-    {
-        GameObject groupObject = new GameObject("grid");
-        Random.seed = 1337;
-        int xCount = dim[0];
-        int yCount = dim[1];
-        float xWidth = spacing.x * xCount;
-        float yWidth = spacing.z * yCount;
+		return obj.GetComponent<PathNode>();
+#else				
+		PathNode newNode = new PathNode();
+		newNode.name = "PathNode_" + nodeCounter + " " + inPosition.x + ", " + inPosition.z + " " + suffix + ", enabled = " + nodeEnabled;
+		newNode.position = inPosition;
+		newNode.nodeEnabled = nodeEnabled;
+		newNode.nodeValid = true;
 		
-		GameObject go = GameObject.FindGameObjectWithTag("LevelGenerator");
-		
-		int cols = go.GetComponent<Generator>().cols;
-		int rows = go.GetComponent<Generator>().rows;
-        
-		float startX 	= cols;
-		float startZ 	= rows;
-		
-        List<PathNode> result = new List<PathNode>();
-		
-		if (Generator.map == null || Generator.generatorDone == false)
-			return null;
-        
-		int counter = 0;
-		
-        for(int col = 0; col < xCount; col++)
-        {            
-            for(int row = 0; row < yCount; row++)
-            {
-				//bool nodeEnabled = false;
-				
-				if (Generator.map[col][row] == 0)
-				{
-					//nodeEnabled = true;
-					endNode = counter;
-					
-					if (startNode == -1)
-						startNode = counter;
-				}
-				else
-				{
-					//nodeEnabled = false;
-				}
-				
-                /*GameObject newNode = Spawn(new Vector3(startX - (col * 2), center.y, startZ - (row * 2)), nodeEnabled);
-				
-				newNode.nodeEnabled = nodeEnabled;
-				
-				newNode.xPos = col;
-				newNode.yPos = row;
-				
-                result.Add(newNode);
-				counter++;*/
-            
-            }
-        }			
-        
-        for(int x = 0; x < xCount; x++)
-        {       
-            for(int y = 0; y < yCount; y++)
-            {
-				if (Generator.map[x][y] != 0)
-					continue;
-				
-                int thisIndex = (x * yCount) + y;
-                List<int> connectedIndicies = new List<int>();
-				
-				if (thisIndex >= result.Count)
-					continue;
-				
-                PathNode thisNode = result[thisIndex];
-                if(AStarHelper.Invalid(thisNode)) continue;
-				
-				int x1 = x, y1 = y;
-				                
-				if(x != 0 && Generator.map[x1-1][y] == 0)
-                    connectedIndicies.Add(((x - 1) * yCount) + y);
-				
-                if(x != xCount - 1 && Generator.map[x1+1][y1] == 0)
-                    connectedIndicies.Add(((x + 1) * yCount) + y);
-				
-                if(y != 0 && Generator.map[x1][y1-1] == 0)
-                    connectedIndicies.Add((x * yCount) + (y - 1));
-				
-                if(y != yCount - 1 && Generator.map[x1][y1+1] == 0)
-                    connectedIndicies.Add((x * yCount) + (y + 1));
-                
-                if(x != 0 && y != 0 && Generator.map[x1-1][y1-1] == 0)
-                    connectedIndicies.Add(((x - 1) * yCount) + (y - 1));
-                
-                if(x != xCount - 1 && y != yCount - 1 && Generator.map[x1+1][y1+1] == 0)
-                    connectedIndicies.Add(((x + 1) * yCount) + (y + 1));
-                
-                if(x != 0 && y != yCount - 1 && Generator.map[x1-1][y1+1] == 0)
-                    connectedIndicies.Add(((x - 1) * yCount) + (y + 1));
-                
-                if(x != xCount - 1 && y != 0 && Generator.map[x1+1][y1-1] == 0)
-                    connectedIndicies.Add(((x + 1) * yCount) + (y - 1));
-				
-                for(int i = 0; i < connectedIndicies.Count; i++)
-                {
-					int index = connectedIndicies[i];
-					
-					if (index >= result.Count)
-						continue;
-					
-                    PathNode thisConnection = result[index];
-                    if(AStarHelper.Invalid(thisConnection))
-                        continue;
-                    thisNode.Connections.Add(thisConnection);
-                }
-                
-            }
-        }
-        
-        return result;        
+		nodeCounter++;
+        return newNode;
+#endif
     }
 }

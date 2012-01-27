@@ -30,7 +30,6 @@ using UnityEngine;
 			wallTxt.AddComponent<TextMesh>();
 			wallTxt.AddComponent<MeshRenderer>();
 			var meshRender = wallTxt.GetComponent<MeshRenderer>();
-			var material = meshRender.material;
 			meshRender.material = (Material) Resources.Load("Arial");
 			wallTxt.GetComponent<TextMesh>().text = "Hello world";
 			var myFont = (Font) Resources.Load("Arial");

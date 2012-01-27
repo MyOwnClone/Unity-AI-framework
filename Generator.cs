@@ -16,8 +16,6 @@ public class Generator : MonoBehaviour {
 	
 	public static bool generatorDone = false;
 	
-	private bool playerSet = false;
-	
 	public GameObject textMesh = null;
 	
 	public static DateTime start = DateTime.Now;
@@ -332,7 +330,7 @@ public class Generator : MonoBehaviour {
 	void Update () {
 		if (!generatorDone)
 		{	
-			bool result = LoadFromFile();
+			bool result = false;//LoadFromFile();
 			
 			if (result)
 			{
@@ -358,13 +356,7 @@ public class Generator : MonoBehaviour {
 				for (int row = 0; row < rows; row++)
 				{	
 					Vector3 position = new Vector3(startX - (col * 2), 1f, startZ - (row * 2));	
-					
-					if (map[col][row] == 0 && col > (cols / 2.0f) && (row > rows / 2.0f) && !playerSet)
-					{
-						GameObject.Find ("Player").transform.position = position + new Vector3(0.0f, 3.0f, 0.0f);
-						playerSet = true;
-					}
-					
+															
 					if (map[col][row] == 0)
 						continue;
 					

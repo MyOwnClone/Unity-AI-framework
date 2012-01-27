@@ -64,6 +64,12 @@ public static class AStarHelper
         Dictionary<T, float> f_score = new Dictionary<T, float>();
         f_score[start] = h_score[start]; // Estimated total cost from start to goal through y.
 
+		System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+		
+		long elapsed = 0;
+		
+		sw.Start();
+		
         while(openset.Count != 0)
         {
             T x = LowestScore(openset, f_score);
@@ -73,6 +79,16 @@ public static class AStarHelper
                 ReconstructPath(came_from, x, ref result);
                 return result;
             }
+			
+			sw.Stop();
+			
+			elapsed += sw.ElapsedMilliseconds;
+			
+			if (elapsed > 5)
+				return null;
+				
+			sw.Start();
+			
             openset.Remove(x);
             closedset.Add(x);
             foreach(T y in x.Connections)

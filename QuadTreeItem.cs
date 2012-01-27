@@ -18,6 +18,10 @@ public class QuadTreeItem : MonoBehaviour
 		public GameObject TextMeshPrefab = null;
 	
 		public int Level = 0;
+	
+		public int Depth = 0;
+	
+		public GameObject insideGameObject = null;
 		
 		public GameObject Parent = null;
 		

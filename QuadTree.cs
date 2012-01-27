@@ -6,17 +6,33 @@ using UnityEngine;
 	{
 		public Vector3 scale = new Vector3(0f, 0f, 0f);
 		public Vector3 position = new Vector3(0f, 0f, 0f);
+		public string name = string.Empty;
+		public bool moved = false;
+		public Vector3 oldPosition = new Vector3(0f, 0f, 0f);
 	
 		public ObjectInfo(Vector3 position, Vector3 scale)
 		{	
 			this.position = position;
 			this.scale = scale;	
 		}
+	
+		public ObjectInfo(Vector3 position, Vector3 scale, string name)
+		{	
+			this.position = position;
+			this.scale = scale;	
+			this.name = name;
+		}
+	
+		public ObjectInfo(ObjectInfo objRef)
+		{
+			this.position = objRef.position;
+			this.scale = objRef.scale;	
+			this.name = objRef.name;	
+		}
 	}
 
 	public class QuadTree : MonoBehaviour
 	{
-		//private QuadTreeItem root = null;
 		private GameObject root = null;
 		
 		public float CenterX = 0.0f;
@@ -24,10 +40,11 @@ using UnityEngine;
 		public float Width = 0.0f;
 		public float TargetSize = 0.0f;
 	
-		//private List<GameObject> allObstacles = new List<GameObject>();	// tag == wall
 		private List<ObjectInfo> oldObstacles = new List<ObjectInfo>();
-		
-		private DateTime lastTimeChecked = DateTime.Now;
+			
+		public List<ObjectInfo> differentObjects = new List<ObjectInfo>();
+	
+		public List<QuadTreeItem> qtisToRegenerate = new List<QuadTreeItem>();
 	
 		//public QuadTreeItem Root
 		public GameObject Root
@@ -43,51 +60,6 @@ using UnityEngine;
 		public static bool waypointsNeedRegeneration = false;
 		
 		List<GameObject> quadTree = new List<GameObject>();
-		
-		/*public bool IsGameObjectIn(GameObject bigger, GameObject smaller)
-		{
-			return IsGameObjectIn(bigger, smaller.transform.position);		
-		}
-	
-		public bool IsGameObjectIn(GameObject bigger, Vector3 smallerPos)
-		{
-			// bigger edges
-			Vector3 biggerPos = bigger.transform.position;
-			Vector3 biggerColliderSize = bigger.GetComponent<QuadTreeItem>().Size;
-		
-			Vector3 potencialBigger = bigger.transform.localScale;
-		
-			if (potencialBigger.x > biggerColliderSize.x && potencialBigger.y > biggerColliderSize.y && potencialBigger.z > biggerColliderSize.z)
-				biggerColliderSize = potencialBigger;
-			
-			float leftFrontDownX = biggerPos.x - biggerColliderSize.x / 2.0f;
-			float leftFrontDownY = biggerPos.y - biggerColliderSize.y / 2.0f;
-			float leftFrontDownZ = biggerPos.z - biggerColliderSize.z / 2.0f;
-			
-			float rightFrontDownX = biggerPos.x + biggerColliderSize.x / 2.0f;
-			float rightFrontDownY = biggerPos.y - biggerColliderSize.y / 2.0f;
-			float rightFrontDownZ = biggerPos.z - biggerColliderSize.z / 2.0f;
-						
-			float leftBackDownX = biggerPos.x - biggerColliderSize.x / 2.0f;
-			float leftBackDownY = biggerPos.y - biggerColliderSize.y / 2.0f;
-			float leftBackDownZ = biggerPos.z + biggerColliderSize.z / 2.0f;
-			
-			float rightBackDownX = biggerPos.x + biggerColliderSize.x / 2.0f;
-			float rightBackDownY = biggerPos.y - biggerColliderSize.y / 2.0f;
-			float rightBackDownZ = biggerPos.z + biggerColliderSize.z / 2.0f;
-			
-			//Vector3 smallerPos = smaller.transform.position;
-			
-			if (smallerPos.x >= leftFrontDownX && smallerPos.x <= rightFrontDownX
-				&& smallerPos.z >= rightFrontDownZ && smallerPos.z <= rightBackDownZ)
-			{
-				return true;	
-			}
-			else
-			{
-				return false;
-			}
-		}*/
 	
 		public bool IsGameObjectIn(GameObject box1, GameObject box2)
 		{
@@ -150,11 +122,31 @@ using UnityEngine;
 			return result;
 		}
 	
-		public QuadTreeItem GetQuadTreeItemFor(Vector3 vec)
+		public List<QuadTreeItem> GetQuadTreeItemFor(Vector3 vec, Vector3 size, int maxDepth)
+		{
+			var result = new List<QuadTreeItem>();
+		
+			Vector3 leftFront 	= new Vector3(vec.x - size.x/2.0f, vec.y, vec.z - size.z/2.0f);
+			Vector3 rightFront 	= new Vector3(vec.x + size.x/2.0f, vec.y, vec.z - size.z/2.0f);
+			
+			Vector3 leftBack 	= new Vector3(vec.x - size.x/2.0f, vec.y, vec.z + size.z/2.0f);
+			Vector3 rightBack 	= new Vector3(vec.x + size.x/2.0f, vec.y, vec.z + size.z/2.0f);
+		
+			result.Add(GetQuadTreeItemFor(leftFront, 	maxDepth));
+			result.Add(GetQuadTreeItemFor(rightFront, 	maxDepth));
+			result.Add(GetQuadTreeItemFor(leftBack, 	maxDepth));
+			result.Add(GetQuadTreeItemFor(rightBack, 	maxDepth));
+		
+			return result;
+		}
+	
+		public QuadTreeItem GetQuadTreeItemFor(Vector3 vec, int maxDepth)
 		{
 			GameObject act = root;	
 		
 			QuadTreeItem result = null;
+		
+			int depth = 0;
 		
 			while (true)
 			{
@@ -169,7 +161,13 @@ using UnityEngine;
 				if (act.GetComponent<QuadTreeItem>().Children.Count == 0)
 				{
 					break;
-				}					
+				}	
+			
+				if (maxDepth != 0 && depth == maxDepth && IsGameObjectIn(act, vec))
+				{
+					result = act.GetComponent<QuadTreeItem>();
+					break;	
+				}
 				
 				if (vec.x <= actPosition.x && vec.z <= actPosition.z)
 				{
@@ -191,24 +189,27 @@ using UnityEngine;
 				{
 					break;
 				}
+			
+				depth++;
 			}
 		
 			return result;
 		}
 	
-		void DisposeOldQuadTree(GameObject root)
+		void DisposeOldQuadTree(GameObject paramRoot, bool keepRoot)
 		{		
-			if (root != null &&root.GetComponent<QuadTreeItem>().Children.Count == 4)
+			if (paramRoot != null && paramRoot.GetComponent<QuadTreeItem>().Children.Count == 4)
 			{
 				for (int i = 0; i < 4; i++)
 				{
-					DisposeOldQuadTree(root.GetComponent<QuadTreeItem>().Children[i]);
+					DisposeOldQuadTree(paramRoot.GetComponent<QuadTreeItem>().Children[i], false);
 				}
-				GameObject.DestroyImmediate(root);
+			
+				paramRoot.GetComponent<QuadTreeItem>().Children.Clear();
 			}	
-			else if (root != null)
+			if (paramRoot != null && !keepRoot)
 			{
-				GameObject.DestroyImmediate(root);
+				GameObject.DestroyImmediate(paramRoot);
 			}
 		}
 		
@@ -220,13 +221,9 @@ using UnityEngine;
 			
 			foreach (GameObject go in list)
 			{
-				//if (go.GetComponent<BoxCollider>().size item.GetComponent<BoxCollider>().size	
 				if (IsGameObjectIn(item, go))
 				{
 					result.Add(go);
-				
-					//go.GetComponent<WallController>().StringToDisplay = item.GetComponent<QuadTreeItem>().name;
-					//go.GetComponent<WallController>().QuadTreeItems.Add(item.GetComponent<QuadTreeItem>());
 				}
 			}
 			
@@ -235,7 +232,6 @@ using UnityEngine;
 		
 		void Start()
 		{
-			//Init (null, 40, 0);	
 		}
 	
 		private int detectionCounter = 0;
@@ -244,29 +240,68 @@ using UnityEngine;
 		{
 			bool result = true;
 		
-			if (detectionCounter < 500)
+			if (detectionCounter < 50)
 			{
 				result = false;
 				detectionCounter++;
 			}
 			else
 			{
-				Debug.Log ("Times up");
+				//Debug.Log ("Times up");
 				detectionCounter = 0;
 			}
 		
 			if (result)
 			{
+				differentObjects.Clear();
+			
 				var newObstacles = new List<ObjectInfo>();
 			
 				var obstacles = GameObject.FindGameObjectsWithTag("wall");
 				foreach (GameObject go in obstacles)
 				{
-					newObstacles.Add(new ObjectInfo(go.transform.position, go.transform.localScale));
+					newObstacles.Add(new ObjectInfo(go.transform.position, go.transform.localScale, go.name));
 				}
 			
 				if (newObstacles.Count != oldObstacles.Count)
 				{
+					Debug.Log ("Obstacle count differs");	
+				
+					if (oldObstacles.Count > newObstacles.Count)
+					{
+						Debug.Log ("Old > new");
+						foreach (ObjectInfo oi1 in oldObstacles)
+						{
+							bool found = false;
+						
+							foreach (ObjectInfo oi2 in newObstacles)
+							{	
+								if (oi2.position == oi1.position)
+									found = true;
+							}
+						
+							if (!found)
+								differentObjects.Add(oi1);
+						}
+					}
+					else
+					{
+						Debug.Log ("Old < new");
+						foreach (ObjectInfo oi1 in newObstacles)
+						{
+							bool found = false;
+						
+							foreach (ObjectInfo oi2 in oldObstacles)
+							{	
+								if (oi2.position == oi1.position)
+									found = true;
+							}
+						
+							if (!found)
+								differentObjects.Add(oi1);
+						}
+					}
+				
 					result = true;
 				}
 				else
@@ -281,14 +316,24 @@ using UnityEngine;
 						ObjectInfo oldObject = oldObstacles[counter];
 						ObjectInfo newObject = newObstacles[counter];
 					
-						if ((oldObject.position != newObject.position) || (oldObject.scale != newObject.scale))
+						newObject.moved = false;
+					
+						if (oldObject.position != newObject.position)
 						{
-							return true;
+							newObject.moved = true;
+							newObject.oldPosition = oldObject.position;
+							result = true;
+							differentObjects.Add(newObject);
+						}
+						else if (oldObject.scale != newObject.scale)
+						{
+							result = true;
+							differentObjects.Add(newObject);
 						}
 					}
 				}
 			
-				Debug.Log ("change in obstacles: " + result + " map generator done: " + Generator.generatorDone + " quadtree generation done: " + generationDone );
+				//Debug.Log ("change in obstacles: " + result + " map generator done: " + Generator.generatorDone + " quadtree generation done: " + generationDone );
 			}
 		
 			return result;
@@ -296,34 +341,82 @@ using UnityEngine;
 	
 		public static bool rebuildingQuadTree = false;
 		
+		void UpdateQuadTree()
+		{
+			Debug.Log("Different objs count: " + differentObjects.Count);
+			foreach (ObjectInfo oi in differentObjects) 
+			{				
+				List<QuadTreeItem> result = GetQuadTreeItemFor(new Vector3(oi.position.x, 1.0f, oi.position.z), oi.scale, 2);
+				result.AddRange(GetQuadTreeItemFor(new Vector3(oi.oldPosition.x, 1.0f, oi.oldPosition.z), oi.scale, 2));
+			
+				foreach (QuadTreeItem qti in result)
+				{
+					qti.GameObjects.Clear();
+				
+					DisposeOldQuadTree(qti.insideGameObject, true);
+				
+					Init (qti.insideGameObject, qti.Depth);
+				
+					qtisToRegenerate.Add (qti);	
+				}
+			}
+		}
+	
 		void Update()
 		{
 			if (Generator.generatorDone && !generationDone)
 			{
-				Init (null, 40, 0);
+				Init (null, 0);
 				generationDone = true;
 			}
 			else if (DetectChangeInObstacles() && Generator.generatorDone && generationDone == true)
-			{
-				Debug.Log("Rebuilding QuadTree");
-				rebuildingQuadTree = true;
-				DisposeOldQuadTree(root);
-				Init (null, 40, 0);
-				rebuildingQuadTree = false;
+			{			
+				UpdateQuadTree();
 				waypointsNeedRegeneration = true;
+			
+				var obstacles = GameObject.FindGameObjectsWithTag("wall");
+			
+				oldObstacles.Clear();
+				foreach (GameObject go in obstacles)
+				{
+					oldObstacles.Add(new ObjectInfo(go.transform.position, go.transform.localScale, go.name));
+				}
 			}			
 		}
 	
-		public void Init(/*QuadTreeItem*/GameObject startItem, int level, int depth)
+		static int itemCounter = 0;
+
+		GameObject PrepareChild (GameObject parent, Vector3 position, Vector3 size, int itemCounter, int depth)
+		{
+			GameObject child = null;
+		
+			child = GameObject.CreatePrimitive(PrimitiveType.Cube);
+			child.transform.position = position;
+			child.AddComponent<QuadTreeItem>();
+			child.name = "quadtree_child" + depth + "_" + itemCounter;
+			child.GetComponent<MeshRenderer>().enabled = false;
+			child.GetComponent<QuadTreeItem>().Position = position;
+			child.GetComponent<QuadTreeItem>().Size = size;
+			child.GetComponent<QuadTreeItem>().Parent = parent;
+			child.GetComponent<QuadTreeItem>().Depth = depth;
+			child.GetComponent<QuadTreeItem>().insideGameObject = child;
+			child.GetComponent<BoxCollider>().enabled = false;
+			child.transform.localScale = size;
+			child.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child));
+		
+			return child;
+		}
+	
+		public void Init(GameObject startItem, int depth)
 		{
 			if (startItem == null)
-			{
-				//allObstacles = new List<GameObject>(GameObject.FindGameObjectsWithTag("wall"));
-			
+			{			
 				var obstacles = GameObject.FindGameObjectsWithTag("wall");
+			
+				oldObstacles.Clear();
 				foreach (GameObject go in obstacles)
 				{
-					oldObstacles.Add(new ObjectInfo(go.transform.position, go.transform.localScale));
+					oldObstacles.Add(new ObjectInfo(go.transform.position, go.transform.localScale, go.name));
 				}				
 			
 				root = startItem = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -333,6 +426,7 @@ using UnityEngine;
 				root.AddComponent<BoxCollider>();
 				root.GetComponent<BoxCollider>().size = new Vector3(Width, 1, Width);
 				root.GetComponent<BoxCollider>().enabled = false;
+				root.GetComponent<QuadTreeItem>().insideGameObject = root;
 				
 				root.GetComponent<QuadTreeItem>().Position = new Vector3(CenterX, 0, CenterY);
 				root.GetComponent<QuadTreeItem>().Size = new Vector3(Width, 1, Width);
@@ -340,223 +434,110 @@ using UnityEngine;
 				
 				root.GetComponent<QuadTreeItem>().GameObjects.AddRange( DetermineGameObjectsInside(root));
 				
-				quadTree.Add(root);
-			
-			
+				quadTree.Add(root);	
 				
 				float newWidth = startItem.GetComponent<QuadTreeItem>().Size.x;// / 2.0f;
 				
 				Vector3 pos1 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x - (newWidth/4), 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z - (newWidth/4));
-				Vector3 size1 = new Vector3(newWidth/2, level, newWidth/2);
+				Vector3 size = new Vector3(newWidth/2, newWidth/2, newWidth/2);
 				
 				Vector3 pos2 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x + (newWidth/4), 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z - (newWidth/4));
-				Vector3 size2 = new Vector3(newWidth/2, level, newWidth/2);
 				
 				Vector3 pos3 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x + (newWidth/4), 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z + (newWidth/4));
-				Vector3 size3= new Vector3(newWidth/2, level, newWidth/2);
 				
 				Vector3 pos4 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x - (newWidth/4), 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z + (newWidth/4));
-				Vector3 size4= new Vector3(newWidth/2, level, newWidth/2);
-			
-				/*Vector3 pos4 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x + newWidth, 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z);
-				Vector3 size4 = new Vector3(newWidth, level, newWidth);*/
-				
-				/*Debug.Log ("Pos: " + pos1.x + ", " + pos1.y + ", " + pos1.z + ", size: " + size1.x + ", " + size1.y + ", " + size1.z);
-				Debug.Log ("Pos: " + pos2.x + ", " + pos2.y + ", " + pos2.z + ", size: " + size2.x + ", " + size2.y + ", " + size2.z);
-				Debug.Log ("Pos: " + pos3.x + ", " + pos3.y + ", " + pos3.z + ", size: " + size3.x + ", " + size3.y + ", " + size3.z);
-				Debug.Log ("Pos: " + pos4.x + ", " + pos4.y + ", " + pos4.z + ", size: " + size4.x + ", " + size4.y + ", " + size4.z);*/
 			
 				GameObject child1, child2, child3, child4;
 				
-				child1 = GameObject.CreatePrimitive(PrimitiveType.Cube);
-				child1.transform.position = pos1;
-				child1.AddComponent<QuadTreeItem>();
-				child1.name = "quadtree_child" + depth;
-				child1.GetComponent<MeshRenderer>().enabled = false;
-				child1.GetComponent<QuadTreeItem>().Position = pos1;
-				child1.GetComponent<QuadTreeItem>().Size = size1;
-				child1.GetComponent<QuadTreeItem>().Parent = root;
-				//child1.AddComponent<BoxCollider>();
-				//child1.GetComponent<BoxCollider>().size = size1;
-				child1.GetComponent<BoxCollider>().enabled = false;
-				child1.transform.localScale = size1;
-				child1.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child1));
-				
-				child2 = GameObject.CreatePrimitive(PrimitiveType.Cube);
-				child2.transform.position = pos2;
-				child2.AddComponent<QuadTreeItem>();
-				child2.name = "quadtree_child" + depth;
-				child2.GetComponent<MeshRenderer>().enabled = false;
-				child2.GetComponent<QuadTreeItem>().Position = pos2;
-				child2.GetComponent<QuadTreeItem>().Size = size2;
-				child2.GetComponent<QuadTreeItem>().Parent = root;
-				//child2.AddComponent<BoxCollider>();
-				//child2.GetComponent<BoxCollider>().size = size2;
-				child2.GetComponent<BoxCollider>().enabled = false;
-				child2.transform.localScale = size2;
-				child2.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child2));
-				
-				child3 = GameObject.CreatePrimitive(PrimitiveType.Cube);
-				child3.transform.position = pos3;
-				child3.AddComponent<QuadTreeItem>();
-				child3.name = "quadtree_child" + depth;
-				child3.GetComponent<MeshRenderer>().enabled = false;
-				child3.GetComponent<QuadTreeItem>().Position = pos3;
-				child3.GetComponent<QuadTreeItem>().Size = size3;
-				child3.GetComponent<QuadTreeItem>().Parent = root;
-				//child3.AddComponent<BoxCollider>();
-				//child3.GetComponent<BoxCollider>().size = size3;
-				child3.GetComponent<BoxCollider>().enabled = false;
-				child3.transform.localScale = size3;
-				child3.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child3));
-				
-				child4 = GameObject.CreatePrimitive(PrimitiveType.Cube);
-				child4.transform.position = pos4;
-				child4.AddComponent<QuadTreeItem>();
-				child4.name = "quadtree_child" + depth;
-				child4.GetComponent<MeshRenderer>().enabled = false;
-				child4.GetComponent<QuadTreeItem>().Position = pos4;
-				child4.GetComponent<QuadTreeItem>().Size = size4;
-				child4.GetComponent<QuadTreeItem>().Parent = root;
-				child4.transform.localScale = size4;
-				//child4.AddComponent<BoxCollider>();
-				//child4.GetComponent<BoxCollider>().size = size4;
-				child4.GetComponent<BoxCollider>().enabled = false;
-				child4.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child4));
-				
+				child1 = PrepareChild (root, pos1, size, itemCounter, depth);				
+				itemCounter++;
+				child2 = PrepareChild (root, pos2, size, itemCounter, depth);				
+				itemCounter++;
+				child3 = PrepareChild (root, pos3, size, itemCounter, depth);
+				itemCounter++;
+				child4 = PrepareChild (root, pos4, size, itemCounter, depth);
+				itemCounter++;
+			
 				root.GetComponent<QuadTreeItem>().Children.Add(child1);
 				root.GetComponent<QuadTreeItem>().Children.Add(child2);
 				root.GetComponent<QuadTreeItem>().Children.Add(child3);
 				root.GetComponent<QuadTreeItem>().Children.Add(child4);
 				
-				Init(child1, level-10, depth+1);
-				Init(child2, level-10, depth+1);
-				Init(child3, level-10, depth+1);
-				Init(child4, level-10, depth+1);
+				Init(child1, depth+1);
+				Init(child2, depth+1);
+				Init(child3, depth+1);
+				Init(child4, depth+1);
+			
+				root.GetComponent<QuadTreeItem>().GameObjects.AddRange(child1.GetComponent<QuadTreeItem>().GameObjects);
+				root.GetComponent<QuadTreeItem>().GameObjects.AddRange(child2.GetComponent<QuadTreeItem>().GameObjects);
+				root.GetComponent<QuadTreeItem>().GameObjects.AddRange(child3.GetComponent<QuadTreeItem>().GameObjects);
+				root.GetComponent<QuadTreeItem>().GameObjects.AddRange(child4.GetComponent<QuadTreeItem>().GameObjects);
 			}
 			else
 			{
-				float newWidth = startItem.GetComponent<QuadTreeItem>().Size.x/* / 2.0f*/;
+				float newWidth = startItem.GetComponent<QuadTreeItem>().Size.x;
 				
 				if (newWidth < TargetSize)
 					return;
-			
-				//float newWidth = startItem.GetComponent<QuadTreeItem>().Size.x;// / 2.0f;
 				
 				Vector3 pos1 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x - (newWidth/4), 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z - (newWidth/4));
-				Vector3 size1 = new Vector3(newWidth/2, level, newWidth/2);
+				Vector3 size = new Vector3(newWidth/2, newWidth/2, newWidth/2);
 				
 				Vector3 pos2 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x + (newWidth/4), 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z - (newWidth/4));
-				Vector3 size2 = new Vector3(newWidth/2, level, newWidth/2);
 				
 				Vector3 pos3 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x + (newWidth/4), 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z + (newWidth/4));
-				Vector3 size3= new Vector3(newWidth/2, level, newWidth/2);
 				
 				Vector3 pos4 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x - (newWidth/4), 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z + (newWidth/4));
-				Vector3 size4= new Vector3(newWidth/2, level, newWidth/2);
-				
-				/*Vector3 pos1 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x - newWidth, 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z - newWidth);
-				Vector3 size1 = new Vector3(newWidth, level, newWidth);
-				
-				Vector3 pos2 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x, 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z - newWidth);
-				Vector3 size2 = new Vector3(newWidth, level, newWidth);
-				
-				Vector3 pos3 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x, 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z + newWidth);
-				Vector3 size3 = new Vector3(newWidth, level, newWidth);
-				
-				Vector3 pos4 = new Vector3(startItem.GetComponent<QuadTreeItem>().Position.x + newWidth, 1.0f,startItem.GetComponent<QuadTreeItem>().Position.z);
-				Vector3 size4 = new Vector3(newWidth, level, newWidth);*/
-			
-				/*Debug.Log ("Pos: " + pos1.x + ", " + pos1.y + ", " + pos1.z + ", size: " + size1.x + ", " + size1.y + ", " + size1.z);
-				Debug.Log ("Pos: " + pos2.x + ", " + pos2.y + ", " + pos2.z + ", size: " + size2.x + ", " + size2.y + ", " + size2.z);
-				Debug.Log ("Pos: " + pos3.x + ", " + pos3.y + ", " + pos3.z + ", size: " + size3.x + ", " + size3.y + ", " + size3.z);
-				Debug.Log ("Pos: " + pos4.x + ", " + pos4.y + ", " + pos4.z + ", size: " + size4.x + ", " + size4.y + ", " + size4.z);*/
 				
 				GameObject child1, child2, child3, child4;
 				
 				if (pos1.x < Width / 2 && pos1.z < Width / 2)
-				{
-					child1 = GameObject.CreatePrimitive(PrimitiveType.Cube);
-					child1.transform.position = pos1;
-					child1.AddComponent<QuadTreeItem>();
-					child1.name = "quadtree_child" + depth;
-					child1.GetComponent<MeshRenderer>().enabled = false;
-					child1.GetComponent<QuadTreeItem>().Position = pos1;
-					child1.GetComponent<QuadTreeItem>().Size = size1;
-					child1.GetComponent<QuadTreeItem>().Parent = startItem;
-					child1.transform.localScale = size1;
-					//child1.AddComponent<BoxCollider>();
-					//child1.GetComponent<BoxCollider>().size = size1;
-					child1.GetComponent<BoxCollider>().enabled = false;
-					child1.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child1));
-									
+				{					
+					child1 = PrepareChild (startItem, pos1, size, itemCounter, depth);		
+				
 					startItem.GetComponent<QuadTreeItem>().Children.Add(child1);
-					Init(child1, level-10, depth + 1);
+					Init(child1, depth + 1);
+					
+					startItem.GetComponent<QuadTreeItem>().GameObjects.AddRange(child1.GetComponent<QuadTreeItem>().GameObjects);
+				
+					itemCounter++;
 				}
 			
 				if (pos2.x < Width / 2 && pos2.z < Width / 2)
 				{
-					child2 = GameObject.CreatePrimitive(PrimitiveType.Cube);
-					child2.transform.position = pos2;
-					child2.AddComponent<QuadTreeItem>();
-					child2.name = "quadtree_child" + depth;
-					child2.GetComponent<MeshRenderer>().enabled = false;
-					child2.GetComponent<QuadTreeItem>().Position = pos2;
-					child2.GetComponent<QuadTreeItem>().Size = size2;
-					child2.GetComponent<QuadTreeItem>().Parent = startItem;
-					child2.transform.localScale = size2;
-					//child2.AddComponent<BoxCollider>();
-					child2.GetComponent<BoxCollider>().enabled = false;
-					child2.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child2));
+					child2 = PrepareChild (startItem, pos2, size, itemCounter, depth);	
 					
 					startItem.GetComponent<QuadTreeItem>().Children.Add(child2);
-					Init(child2, level-10, depth + 1);
+					Init(child2, depth + 1);
+				
+					startItem.GetComponent<QuadTreeItem>().GameObjects.AddRange(child2.GetComponent<QuadTreeItem>().GameObjects);
+				
+					itemCounter++;
 				}
 				
 				if (pos3.x < Width / 2 && pos3.z < Width / 2)
 				{
-					child3 = GameObject.CreatePrimitive(PrimitiveType.Cube);
-					child3.transform.position = pos3;
-					child3.AddComponent<QuadTreeItem>();
-					child3.name = "quadtree_child" + depth;
-					child3.GetComponent<MeshRenderer>().enabled = false;
-					child3.GetComponent<QuadTreeItem>().Position = pos3;
-					child3.GetComponent<QuadTreeItem>().Size = size3;
-					child3.GetComponent<QuadTreeItem>().Parent = startItem;
-					child3.transform.localScale = size3;
-					//child3.AddComponent<BoxCollider>();
-					//child3.GetComponent<BoxCollider>().size = size3;
-					child3.GetComponent<BoxCollider>().enabled = false;
-					child3.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child3));
+					child3 = PrepareChild (startItem, pos3, size, itemCounter, depth);	
 				
 					startItem.GetComponent<QuadTreeItem>().Children.Add(child3);
-					Init(child3, level-10, depth + 1);
+					Init(child3, depth + 1);
+				
+					startItem.GetComponent<QuadTreeItem>().GameObjects.AddRange(child3.GetComponent<QuadTreeItem>().GameObjects);
+				
+					itemCounter++;
 				}	
 			
 				if (pos4.x < Width / 2 && pos4.z < Width / 2)
-				{
-					child4 = GameObject.CreatePrimitive(PrimitiveType.Cube);
-					child4.transform.position = pos4;
-					child4.AddComponent<QuadTreeItem>();
-					child4.name = "quadtree_child" + depth;
-					child4.GetComponent<MeshRenderer>().enabled = false;
-					child4.GetComponent<QuadTreeItem>().Position = pos4;
-					child4.GetComponent<QuadTreeItem>().Size = size4;
-					child4.GetComponent<QuadTreeItem>().Parent = startItem;
-					child4.transform.localScale = size4;
-					//child4.AddComponent<BoxCollider>();
-					//child4.GetComponent<BoxCollider>().size = size4;
-					child4.GetComponent<BoxCollider>().enabled = false;
-					child4.GetComponent<QuadTreeItem>().GameObjects.AddRange(DetermineGameObjectsInside(child4));
+				{				
+					child4 = PrepareChild (startItem, pos4, size, itemCounter, depth);	
 				
 					startItem.GetComponent<QuadTreeItem>().Children.Add(child4);
-					Init(child4, level-10, depth + 1);
-				}
+					Init(child4, depth + 1);
 				
+					startItem.GetComponent<QuadTreeItem>().GameObjects.AddRange(child4.GetComponent<QuadTreeItem>().GameObjects);
+				
+					itemCounter++;
+				}	
 			}
-		}
-		
-		public QuadTree ()
-		{
 		}
 	}
